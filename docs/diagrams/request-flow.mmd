@@ -1,0 +1,36 @@
+%% Existing request flows relevant to tasks A/B/C (observed in code, Stage 00).
+sequenceDiagram
+    autonumber
+    actor Admin as Company admin (browser)
+    participant FE as React SPA
+    participant API as DRF APIView
+    participant DB as Postgres
+
+    Note over Admin,DB: Login
+    Admin->>FE: email + password
+    FE->>API: POST /api/auth/login/
+    API->>DB: authenticate, get_or_create Token
+    API-->>FE: {token, user{role}} stored in localStorage
+
+    Note over Admin,DB: Approval flow (Task A relies on this)
+    FE->>API: GET /api/timesheets/?status=submitted
+    API->>DB: filter contract__company = admin.company
+    API-->>FE: [{id, contract(id), date, hours, status, rejection_reason}]
+    FE->>API: PATCH /api/timesheets/{id}/ {status, rejection_reason?}
+    API->>DB: get entry scoped to company, reason required if rejected
+    Note right of API: No role or transition check.<br/>Writable contract FK (probe-confirmed gaps)
+    API-->>FE: 200 updated entry
+
+    Note over Admin,DB: Billing flow (Task B) - stubbed
+    FE->>API: POST /api/billing/runs/ {month: YYYY-MM}
+    API-->>FE: 200 {run_id: stub, invoices_generated: 0}
+    FE->>API: GET /api/invoices/?month=YYYY-MM
+    API-->>FE: 200 []
+    FE->>API: GET /api/invoices/{id}/
+    API-->>FE: 404
+
+    Note over Admin,DB: Developer settings (Task C) - stubbed
+    FE->>API: POST /api/webhook-endpoints/ {url}
+    API-->>FE: 200 {id: stub, url, active: true} (nothing persisted)
+    FE->>API: GET /api/webhook-endpoints/
+    API-->>FE: 200 []

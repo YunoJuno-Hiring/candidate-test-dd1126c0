@@ -1,0 +1,28 @@
+%% High-level components observed in the repository (Stage 00).
+flowchart LR
+    subgraph Browser
+        FE["React 18 + TS SPA (Vite :3000)<br/>pages/, api/client.ts, TanStack Query"]
+    end
+
+    subgraph Backend["Django 5.1 + DRF (:8000)"]
+        AUTH["accounts<br/>login, freelancers<br/>Company / CompanyAdmin / Freelancer"]
+        CON["contracts<br/>contracts, timesheets<br/>Contract / TimesheetEntry"]
+        BILL["billing<br/>STUB views, no models"]
+        WH["webhooks<br/>STUB views, no models"]
+        CORE["core<br/>seed management command"]
+    end
+
+    DB[("Postgres 18<br/>docker-compose: db")]
+    MAIL["Mailpit<br/>SMTP :1025 / UI :8025<br/>docker-compose: mailpit"]
+    RECV["webhook-receiver (Express :8027)<br/>services/webhook-receiver<br/>NOT in docker-compose; task receiver"]
+
+    FE -- "/api proxy, Token auth" --> AUTH
+    FE --> CON
+    FE --> BILL
+    FE --> WH
+    AUTH --> DB
+    CON --> DB
+    CORE --> DB
+    CON -- "FK" --> AUTH
+    BILL -. "EMAIL_BACKEND smtp (unused today)" .-> MAIL
+    WH -. "no outbound delivery yet" .-> RECV

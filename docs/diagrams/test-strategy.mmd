@@ -1,0 +1,17 @@
+%% Test layers available in the repository (Stage 00). Make this task-specific in Stage 01.
+flowchart TD
+    Baseline["Baseline (run 2026-10-17)<br/>pytest: 41 passed<br/>manage.py check: OK<br/>makemigrations --check: no changes<br/>tsc --noEmit: OK, vite build: OK"]
+
+    Baseline --> Backend["Backend: pytest + pytest-django<br/>conftest fixtures, APIClient + Token<br/>locmem email / mailoutbox for email assertions"]
+    Baseline --> Frontend["Frontend: tsc strict + vite build only<br/>no unit test runner configured"]
+    Baseline --> NoLint["Lint: none configured (not run)"]
+
+    Backend --> Selected{"Selected task"}
+    Frontend --> Selected
+
+    Selected -->|"B (backend)"| BT["API tests: run, idempotency, month bounds,<br/>scoping, permissions, email + failure path"]
+    Selected -->|"A or C (frontend)"| FT["Needs approved dev deps:<br/>vitest + Testing Library + jsdom"]
+
+    BT --> Verify["Stage 03: full pytest, tsc, build,<br/>makemigrations --check, manual smoke with Mailpit / receiver"]
+    FT --> Verify
+    Verify --> Review["Stage 04: independent review, record evidence in REVIEW_REPORT.md"]
