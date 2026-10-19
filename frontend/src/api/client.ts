@@ -49,9 +49,49 @@ export interface Invoice {
 }
 
 export interface WebhookEndpoint {
-  id: string | number
+  id: number
   url: string
+  description: string
   active: boolean
+  secret_last4: string
+  created_at: string
+  updated_at: string
+}
+
+/** Only the create response carries the full signing secret. */
+export interface WebhookEndpointCreated extends WebhookEndpoint {
+  secret: string
+}
+
+export interface WebhookEndpointInput {
+  url: string
+  description?: string
+  active?: boolean
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'succeeded' | 'failed' | 'cancelled'
+
+export interface WebhookDeliveryAttempt {
+  attempt_number: number
+  response_status: number | null
+  response_body: string
+  error: string
+  duration_ms: number
+  created_at: string
+}
+
+export interface WebhookDelivery {
+  id: number
+  event_id: string
+  event_type: string
+  status: WebhookDeliveryStatus
+  attempt_count: number
+  next_attempt_at: string | null
+  last_response_code: number | null
+  created_at: string
+  updated_at: string
+  payload: Record<string, unknown>
+  attempts: WebhookDeliveryAttempt[]
 }
 
 function getToken(): string | null {

@@ -1,7 +1,10 @@
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from webhooks.events import emit_timesheet_submitted
 
 from .models import Contract, TimesheetEntry
 from .serializers import (
@@ -123,7 +126,10 @@ class TimesheetListCreateView(APIView):
         except Contract.DoesNotExist:
             return Response({'contract': 'Invalid contract.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        entry = serializer.save(contract=contract, status=TimesheetEntry.STATUS_SUBMITTED)
+        # The webhook outbox rows commit together with the entry, or not at all.
+        with transaction.atomic():
+            entry = serializer.save(contract=contract, status=TimesheetEntry.STATUS_SUBMITTED)
+            emit_timesheet_submitted(entry)
         return Response(TimesheetEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
 
 
@@ -159,7 +165,14 @@ class TimesheetDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        previous_status = entry.status
         serializer = TimesheetEntrySerializer(entry, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        with transaction.atomic():
+            entry = serializer.save()
+            if (
+                entry.status == TimesheetEntry.STATUS_SUBMITTED
+                and previous_status != TimesheetEntry.STATUS_SUBMITTED
+            ):
+                emit_timesheet_submitted(entry)
         return Response(serializer.data)

@@ -1,36 +1,52 @@
-%% Existing request flows relevant to tasks A/B/C (observed in code, Stage 00).
+%% Task C request flow (Stage 01 plan): endpoint config, outbox emission, worker delivery.
 sequenceDiagram
     autonumber
     actor Admin as Company admin (browser)
+    actor FL as Freelancer (browser)
     participant FE as React SPA
     participant API as DRF APIView
     participant DB as Postgres
+    participant W as deliver_webhooks worker
+    participant R as Receiver (localhost:8027/hook)
 
-    Note over Admin,DB: Login
-    Admin->>FE: email + password
-    FE->>API: POST /api/auth/login/
-    API->>DB: authenticate, get_or_create Token
-    API-->>FE: {token, user{role}} stored in localStorage
+    Note over Admin,DB: Configure endpoint
+    Admin->>FE: URL + description
+    FE->>API: POST /api/webhook-endpoints/
+    API->>DB: insert WebhookEndpoint (company = admin.company, secret generated)
+    API-->>FE: 201 {id, url, active, secret} (secret shown once)
 
-    Note over Admin,DB: Approval flow (Task A relies on this)
-    FE->>API: GET /api/timesheets/?status=submitted
-    API->>DB: filter contract__company = admin.company
-    API-->>FE: [{id, contract(id), date, hours, status, rejection_reason}]
-    FE->>API: PATCH /api/timesheets/{id}/ {status, rejection_reason?}
-    API->>DB: get entry scoped to company, reason required if rejected
-    Note right of API: No role or transition check.<br/>Writable contract FK (probe-confirmed gaps)
-    API-->>FE: 200 updated entry
+    Note over Admin,R: Send test event (inline first attempt)
+    FE->>API: POST /api/webhook-endpoints/{id}/test/
+    API->>DB: insert WebhookDelivery(webhook.test)
+    API->>R: signed POST (5 s timeout)
+    R-->>API: 2xx / error
+    API->>DB: insert WebhookDeliveryAttempt, update status
+    API-->>FE: delivery with attempt result
 
-    Note over Admin,DB: Billing flow (Task B) - stubbed
-    FE->>API: POST /api/billing/runs/ {month: YYYY-MM}
-    API-->>FE: 200 {run_id: stub, invoices_generated: 0}
-    FE->>API: GET /api/invoices/?month=YYYY-MM
-    API-->>FE: 200 []
-    FE->>API: GET /api/invoices/{id}/
-    API-->>FE: 404
+    Note over FL,DB: Emit timesheet.submitted (outbox)
+    FL->>FE: submit hours
+    FE->>API: POST /api/timesheets/
+    activate API
+    API->>DB: BEGIN
+    API->>DB: insert TimesheetEntry(status=submitted)
+    API->>DB: insert WebhookDelivery per active endpoint of company
+    API->>DB: COMMIT
+    deactivate API
+    API-->>FE: 201 entry
 
-    Note over Admin,DB: Developer settings (Task C) - stubbed
-    FE->>API: POST /api/webhook-endpoints/ {url}
-    API-->>FE: 200 {id: stub, url, active: true} (nothing persisted)
-    FE->>API: GET /api/webhook-endpoints/
-    API-->>FE: 200 []
+    Note over W,R: Asynchronous delivery with retries
+    loop every --interval seconds
+        W->>DB: select due pending rows FOR UPDATE SKIP LOCKED, push next_attempt_at (lease)
+        W->>R: POST payload v1, YJ-Webhook-Id / -Event / -Attempt / -Signature
+        alt 2xx
+            W->>DB: attempt row, status = succeeded
+        else non-2xx, timeout, connection error
+            W->>DB: attempt row, next_attempt_at += 1m, 5m, 30m, 2h, 6h
+            Note right of W: after attempt 6 fails: status = failed
+        end
+    end
+
+    Note over Admin,DB: Delivery log
+    FE->>API: GET /api/webhook-endpoints/{id}/deliveries/ (polled every 5 s)
+    API->>DB: newest 50 deliveries + attempts, scoped to company
+    API-->>FE: deliveries[]
