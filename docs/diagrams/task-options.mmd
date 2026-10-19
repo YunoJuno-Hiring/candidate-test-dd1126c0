@@ -1,0 +1,19 @@
+%% Task comparison. Selection is PENDING the user's decision (Stage 00 gate).
+flowchart TD
+    Start["Stage 00 assessment<br/>baseline: 41 backend tests pass, tsc + build pass"] --> A & B & C
+
+    A["Task A - Frontend Approval Inbox<br/>scope: medium<br/>+ backend endpoints exist<br/>- no frontend test runner (new dev deps)<br/>- PATCH auth/transition gaps"]
+    B["Task B - Backend Monthly Billing Run<br/>scope: medium<br/>+ UI and routes wired, stubs to replace<br/>+ pytest infra ready, no new deps<br/>- idempotency, transaction, email design"]
+    C["Task C - Fullstack Outbound Webhooks<br/>scope: large<br/>- models, CRUD, UI, delivery log<br/>- no queue, receiver not in compose<br/>- signing, retries, SSRF"]
+
+    A --> Decide{"User selects exactly one<br/>(recommended: B)"}
+    B --> Decide
+    C --> Decide
+
+    Decide --> Plan["Stage 01: acceptance criteria, plan, test plan"]
+    Plan --> Gate{"User approves plan?"}
+    Gate -->|Yes| Impl["Stage 02: implement incrementally"]
+    Gate -->|No| Plan
+
+    classDef rec fill:#e0f2fe,stroke:#0284c7
+    class B rec

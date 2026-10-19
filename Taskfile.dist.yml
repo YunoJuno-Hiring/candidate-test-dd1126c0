@@ -25,6 +25,12 @@ tasks:
     cmds:
       - uv run python manage.py runserver
 
+  worker:
+    desc: Start the outbound webhook delivery worker.
+    dir: backend
+    cmds:
+      - uv run python manage.py deliver_webhooks
+
   frontend:
     desc: Start the frontend development server.
     dir: frontend

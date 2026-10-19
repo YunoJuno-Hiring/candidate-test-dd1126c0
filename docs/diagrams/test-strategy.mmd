@@ -1,0 +1,17 @@
+%% Test layers and verification flow for Task C (Stage 01 plan).
+flowchart TD
+    Baseline["Baseline (run 2026-10-17)<br/>pytest: 41 passed<br/>manage.py check: OK<br/>makemigrations --check: no changes<br/>tsc --noEmit: OK, vite build: OK"]
+
+    Baseline --> API["Backend API tests<br/>test_endpoints_api.py<br/>CRUD, secret once, URL validation,<br/>company scoping 404, freelancer 403, anon 401,<br/>test event, delivery log"]
+    Baseline --> Events["Backend emission tests<br/>test_events.py<br/>POST submit, PATCH into submitted,<br/>inactive / other company, no-op transitions"]
+    Baseline --> Delivery["Backend delivery tests<br/>test_delivery.py (sender mocked, time frozen)<br/>signature, 2xx, 5xx, timeout, backoff,<br/>give-up after 6, cancelled, not-due, command --once"]
+    Baseline --> FE["Frontend tests (new: vitest + Testing Library + jsdom)<br/>secret banner once, delete confirm,<br/>loading / empty / error, delivery log rows, test result"]
+
+    API --> Verify
+    Events --> Verify
+    Delivery --> Verify
+    FE --> Verify
+
+    Verify["Stage 03<br/>full pytest (regression on 41), manage.py check,<br/>makemigrations --check, tsc, vitest run, vite build,<br/>docker compose config"]
+    Verify --> Smoke["Manual smoke<br/>compose up incl. webhook-receiver, backend + worker + frontend,<br/>test event, freelancer submit, receiver down then up"]
+    Smoke --> Review["Stage 04: independent review<br/>evidence in REVIEW_REPORT.md"]
